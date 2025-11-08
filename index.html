@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Endless Road — Car Obstacle (Shop & Coins)</title>
+<style>
+  :root{
+    --bg:#7fc97f;
+    --panel: rgba(255,255,255,0.95);
+    --btn-bg: #1976d2;
+    --btn-text: #fff;
+    --accent:#ffb300;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+  body{
+    display:flex;align-items:center;justify-content:center;
+    background: linear-gradient(#9bd67f,#7fbf60);
+    padding:12px;
+  }
+  .game-wrap{
+    width:960px; max-width:98vw; border-radius:10px; overflow:hidden;
+    box-shadow:0 8px 30px rgba(0,0,0,0.35);
+    background:linear-gradient(#e9f7ea,#dff2de);
+    padding:16px;
+  }
+  header{text-align:center;margin-bottom:8px;}
+  h1{margin:6px 0;font-size:28px;letter-spacing:1px;color:#222;}
+  .top-sub{color:#555;margin-top:0;font-size:14px;}
+
+  .screen{
+    position:relative;background:var(--panel);border-radius:8px;padding:12px;
+  }
+
+  canvas#gameCanvas{display:block;border-radius:6px;margin:0 auto;background:transparent;width:100%;height:640px; max-height:70vh;}
+
+  .menu{
+    position:absolute;top:0;left:0;right:0;bottom:0;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:12px;background:linear-gradient(rgba(0,0,0,0.35),rgba(0,0,0,0.35));
+    border-radius:6px;color:white;padding:16px;z-index:80;
+  }
+  .card{background:rgba(255,255,255,0.06); padding:16px;border-radius:8px;min-width:300px;text-align:center;}
+  .btn{
+    display:inline-block;padding:10px 18px;border-radius:8px;border:none;font-weight:700;
+    background:var(--btn-bg); color:var(--btn-text); cursor:pointer;margin:6px;
+    box-shadow:0 4px 10px rgba(0,0,0,0.2);transition:transform .08s ease;
+  }
+  .btn:active{transform:translateY(2px)}
+  .btn.secondary{background:#666;color:#fff}
+  .btn.exit{background:#b71c1c}
+  .levels{display:flex;gap:10px;justify-content:center;margin-top:8px;flex-wrap:wrap;}
+  .info-row{display:flex;gap:12px;align-items:center;justify-content:center;margin-top:6px;color:#eee;font-size:14px;}
+
+  .hud{
+    position:absolute; top:14px; left:18px; display:flex;gap:12px; z-index:50;
+    background:rgba(255,255,255,0.95); padding:8px 12px;border-radius:8px; color:#111;font-weight:700;
+    box-shadow:0 6px 18px rgba(0,0,0,0.15);
+  }
+  .hud .item{min-width:130px;text-align:center;}
+  .right-hud{position:absolute; top:14px; right:18px; display:flex;gap:8px;align-items:center; z-index:50;}
+
+  .overlay{
+    position:absolute; left:0; right:0; top:0; bottom:0;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;
+    gap:12px;background:linear-gradient(rgba(0,0,0,0.45),rgba(0,0,0,0.45));
+    z-index:90;color:white;padding:20px;border-radius:6px;
+  }
+
+  /* Shop styles */
+  .shop-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:12px;width:720px;max-width:92%}
+  .shop-card{background:rgba(255,255,255,0.95);padding:12px;border-radius:10px;color:#111;box-shadow:0 8px 18px rgba(0,0,0,0.12);display:flex;flex-direction:column;align-items:center;gap:8px}
+  .preview-rect{width:120px;height:60px;border-radius:8px;border:2px solid #ccc;display:flex;align-items:center;justify-content:center}
+  .price-tag{background:var(--accent);color:#111;padding:6px 10px;border-radius:8px;font-weight:800}
+
+  @media (max-width:860px){
+    .hud .item{min-width:100px;font-size:13px}
+    canvas#gameCanvas{height:520px;}
+    .shop-grid{grid-template-columns:repeat(2,1fr)}
+  }
+  @media (max-width:520px){
+    .shop-grid{grid-template-columns:1fr}
+    canvas#gameCanvas{height:420px;}
+  }
+</style>
+</head>
+<body>
+  <div class="game-wrap" role="application" aria-label="Endless Car Obstacle Game with Shop">
+    <header>
+      <h1>Endless Road — Obstacle & Custom Cars</h1>
+      <p class="top-sub">Collect coins to buy cars. Use ← → or A/D to move between lanes.</p>
+    </header>
+
+    <div class="screen">
+      <canvas id="gameCanvas" width="900" height="640"></canvas>
+
+      <div class="hud" id="hud">
+        <div class="item">Score: <span id="score">0</span></div>
+        <div class="item">High Score: <span id="highScore">0</span></div>
+        <div class="item">Coins: <span id="coins">0</span></div>
+      </div>
+
+      <div class="right-hud" id="rightHud" style="display:none;">
+        <button class="btn secondary" id="pauseBtn">Pause</button>
+      </div>
+
+      <!-- Main Menu -->
+      <div class="menu" id="mainMenu">
+        <div class="card">
+          <h2 style="margin:2px 0 8px 0;font-size:22px">Endless Road</h2>
+          <p style="margin:0 0 12px 0">Drive, avoid obstacles and collect coins to customize your car!</p>
+          <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap">
+            <button class="btn" id="playBtn">Play</button>
+            <button class="btn" id="customBtn">Customize</button>
+            <button class="btn exit" id="exitBtn">Exit</button>
+          </div>
+          <div class="info-row">
+            <small>Tip: Coins are golden circles on the road. Buy cars in Customize screen.</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Level select -->
+      <div class="menu" id="levelMenu" style="display:none;">
+        <div class="card">
+          <h3 style="margin:0 0 8px 0">Choose Level</h3>
+          <div class="levels">
+            <button class="btn" data-level="1">Level 1 (Easy)</button>
+            <button class="btn" data-level="2">Level 2 (Medium)</button>
+            <button class="btn" data-level="3">Level 3 (Hard)</button>
+          </div>
+          <div style="margin-top:12px">
+            <button class="btn secondary" id="backToMain">Back</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Customize / Shop -->
+      <div class="menu" id="shopMenu" style="display:none;overflow:auto;">
+        <div class="card" style="max-width:820px">
+          <h3 style="margin:0 0 8px 0">Customize — Car Shop</h3>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+            <div>Coins: <strong id="shopCoins">0</strong></div>
+            <div><button class="btn secondary" id="shopBack">Back</button></div>
+          </div>
+
+          <div class="shop-grid" id="shopGrid"></div>
+          <p style="margin-top:8px;font-size:13px;color:#eee">Click <strong>Buy</strong> to purchase a car, then <strong>Select</strong> to equip it.</p>
+        </div>
+      </div>
+
+      <!-- Game Over overlay -->
+      <div class="overlay" id="gameOver" style="display:none;">
+        <h2 id="goTitle">Game Over</h2>
+        <p id="finalScore">Score: 0</p>
+        <div style="display:flex;gap:10px">
+          <button class="btn" id="tryAgain">Try Again</button>
+          <button class="btn secondary" id="goMenu">Main Menu</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+/* ---------- Persistent Data (localStorage keys) ---------- */
+const STORAGE = {
+  coins: 'endless_coins_v1',
+  highScore: 'endless_high_v1',
+  owned: 'endless_owned_v1',
+  selected: 'endless_selected_v1'
+};
+
+/* ---------- Canvas & basic state ---------- */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let W = canvas.width, H = canvas.height;
+
+let gameState = 'menu'; // menu, level, playing, paused, over, shop
+let frame = 0;
+let score = 0;
+let highScore = Number(localStorage.getItem(STORAGE.highScore) || 0);
+let coins = Number(localStorage.getItem(STORAGE.coins) || 0);
+let ownedCars = JSON.parse(localStorage.getItem(STORAGE.owned) || '[]'); // array of ids
+let selectedCarId = localStorage.getItem(STORAGE.selected) || null;
+
+/* ---------- Update HUD initial ---------- */
+document.getElementById('highScore').textContent = highScore;
+document.getElementById('coins').textContent = coins;
+document.getElementById('shopCoins').textContent = coins;
+
+/* ---------- Level settings ---------- */
+let currentLevel = 1;
+const levelSettings = {
+  1:{speed:3, spawnRate:140, coinRate:900, name:'Easy'},
+  2:{speed:4.4, spawnRate:100, coinRate:700, name:'Medium'},
+  3:{speed:5.8, spawnRate:70, coinRate:500, name:'Hard'}
+};
+
+/* ---------- Road & lanes ---------- */
+const road = { x: W*0.14, y:0, w: W*0.72, h: H };
+const laneCount = 3;
+let lanes = [];
+function computeLanes(){
+  lanes = [];
+  const laneW = road.w / laneCount;
+  for(let i=0;i<laneCount;i++){
+    lanes.push( Math.round(road.x + laneW*(i+0.5)) );
+  }
+}
+computeLanes();
+
+/* ---------- Player & cars catalog ---------- */
+/* sample cars: id, name, price (coins), color */
+const CAR_CATALOG = [
+  {id:'red', name:'Red Racer', price:0, color:'#ff3d00'},
+  {id:'blue', name:'Blue Bullet', price:100, color:'#1976d2'},
+  {id:'green', name:'Green Flash', price:200, color:'#2e7d32'},
+  {id:'yellow', name:'Yellow Comet', price:400, color:'#f9a825'},
+  {id:'purple', name:'Violet Vroom', price:800, color:'#7b1fa2'}
+];
+// ensure default owned
+if(ownedCars.length === 0){
+  ownedCars = ['red']; // default free car
+  localStorage.setItem(STORAGE.owned, JSON.stringify(ownedCars));
+}
+if(!selectedCarId) { selectedCarId = 'red'; localStorage.setItem(STORAGE.selected, selectedCarId); }
+
+/* player */
+const player = {
+  laneIndex:1,
+  x: lanes[1],
+  y: H - 120,
+  w: 46, h:88,
+  color: getCarColor(selectedCarId),
+  draw:function(){
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    // car body
+    roundRect(ctx, -this.w/2, -this.h/2, this.w, this.h, 8, true, false, this.color);
+    // windows
+    roundRect(ctx, -this.w/4, -this.h/2 + 8, this.w/2, this.h/4, 4, true, false, '#b3e5fc');
+    ctx.restore();
+  }
+};
+function getCarColor(id){
+  const match = CAR_CATALOG.find(c=>c.id===id);
+  return match ? match.color : '#ff3d00';
+}
+
+/* ---------- Obstacles & coins ---------- */
+let obstacles = []; // {x,y,w,h,lane}
+let coinsOnRoad = []; // {x,y,r,lane}
+
+/* ---------- Controls ---------- */
+let keys = {};
+let touchLeft=false, touchRight=false;
+window.addEventListener('keydown', e=> keys[e.key.toLowerCase()] = true);
+window.addEventListener('keyup', e=> keys[e.key.toLowerCase()] = false);
+
+/* ---------- UI Elements ---------- */
+const mainMenu = document.getElementById('mainMenu');
+const levelMenu = document.getElementById('levelMenu');
+const shopMenu = document.getElementById('shopMenu');
+const playBtn = document.getElementById('playBtn');
+const customBtn = document.getElementById('customBtn');
+const exitBtn = document.getElementById('exitBtn');
+const backToMain = document.getElementById('backToMain');
+const shopBack = document.getElementById('shopBack');
+const shopGrid = document.getElementById('shopGrid');
+const shopCoins = document.getElementById('shopCoins');
+
+/* main menu actions */
+playBtn.onclick = ()=> showLevelMenu();
+customBtn.onclick = ()=> showShop();
+exitBtn.onclick = ()=> tryExit();
+backToMain.onclick = ()=> showMainMenu();
+shopBack.onclick = ()=> showMainMenu();
+
+/* level selection */
+document.querySelectorAll('#levelMenu .btn[data-level]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    currentLevel = Number(b.getAttribute('data-level'));
+    startGame();
+  });
+});
+
+/* Game over buttons */
+document.getElementById('tryAgain').onclick = ()=>{
+  // when paused resume
+  if(gameState === 'paused'){ resumeGame(); return; }
+  startGame();
+};
+document.getElementById('goMenu').onclick = showMainMenu;
+
+/* shop builder */
+function buildShop(){
+  shopGrid.innerHTML = '';
+  shopCoins.textContent = coins;
+  CAR_CATALOG.forEach(car=>{
+    const owned = ownedCars.includes(car.id);
+    const isSelected = (car.id === selectedCarId);
+    const card = document.createElement('div');
+    card.className = 'shop-card';
+    card.innerHTML = `
+      <div style="font-weight:800">${car.name}</div>
+      <div class="preview-rect" aria-hidden>
+        <div style="width:90%;height:70%;border-radius:6px;background:${car.color};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900">${car.id.toUpperCase()}</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="price-tag">${car.price===0 ? 'Free' : car.price+'¢'}</div>
+        ${ owned ? '<div style="color:green;font-weight:700">Owned</div>' : '' }
+      </div>
+      <div style="margin-top:6px">
+        <button class="btn shop-btn" data-id="${car.id}">${ isSelected ? 'Selected' : (owned ? 'Select' : 'Buy') }</button>
+      </div>
+    `;
+    shopGrid.appendChild(card);
+  });
+
+  // attach listeners
+  shopGrid.querySelectorAll('.shop-btn').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const id = b.getAttribute('data-id');
+      const car = CAR_CATALOG.find(c=>c.id===id);
+      if(ownedCars.includes(id)){
+        // select
+        selectedCarId = id;
+        player.color = getCarColor(id);
+        localStorage.setItem(STORAGE.selected, selectedCarId);
+        buildShop();
+        alert(car.name + ' selected!');
+      } else {
+        // buy if enough coins
+        if(coins >= car.price){
+          coins -= car.price;
+          ownedCars.push(id);
+          localStorage.setItem(STORAGE.owned, JSON.stringify(ownedCars));
+          localStorage.setItem(STORAGE.coins, coins);
+          document.getElementById('coins').textContent = coins;
+          shopCoins.textContent = coins;
+          buildShop();
+          alert('Purchased ' + car.name + '!');
+        } else {
+          alert('Not enough coins! Collect coins in the game to buy this car.');
+        }
+      }
+    });
+  });
+}
+
+/* ---------- Menu / Shop toggles ---------- */
+function showMainMenu(){ mainMenu.style.display='flex'; levelMenu.style.display='none'; shopMenu.style.display='none'; document.getElementById('gameOver').style.display='none'; gameState='menu'; }
+function showLevelMenu(){ mainMenu.style.display='none'; levelMenu.style.display='flex'; shopMenu.style.display='none'; gameState='level'; }
+function showShop(){ mainMenu.style.display='none'; levelMenu.style.display='none'; shopMenu.style.display='flex'; buildShop(); gameState='shop'; }
+
+/* Exit logic */
+function tryExit(){
+  try { window.close(); } catch(e) {}
+  setTimeout(()=> {
+    alert("If the tab didn't close automatically, please close the tab or window manually.");
+  }, 120);
+}
+
+/* ---------- Game Start & Reset ---------- */
+function startGame(){
+  mainMenu.style.display='none';
+  levelMenu.style.display='none';
+  shopMenu.style.display='none';
+  document.getElementById('rightHud').style.display='flex';
+  document.getElementById('gameOver').style.display='none';
+  gameState='playing';
+  frame = 0; score = 0; obstacles = []; coinsOnRoad = [];
+  player.laneIndex = 1; player.x = lanes[player.laneIndex];
+  player.color = getCarColor(selectedCarId);
+  document.getElementById('score').textContent = score;
+  document.getElementById('coins').textContent = coins;
+  document.getElementById('curLevel')?.remove?.(); // optional
+}
+
+/* Pause / Resume */
+document.getElementById('pauseBtn').onclick = ()=>{
+  if(gameState === 'playing'){ pauseGame(); }
+  else if(gameState === 'paused'){ resumeGame(); }
+};
+function pauseGame(){
+  gameState = 'paused';
+  document.getElementById('gameOver').style.display='flex';
+  document.getElementById('goTitle').textContent = 'Paused';
+  document.getElementById('finalScore').textContent = 'Score: ' + score;
+}
+function resumeGame(){
+  document.getElementById('gameOver').style.display='none';
+  gameState = 'playing';
+}
+
+/* ---------- Spawn functions ---------- */
+function spawnObstacle(){
+  const lane = Math.floor(Math.random()*laneCount);
+  const x = lanes[lane];
+  const w = 48, h=84;
+  obstacles.push({x:x, y:-h-10, w:w, h:h, lane:lane});
+}
+function spawnCoin(){
+  const lane = Math.floor(Math.random()*laneCount);
+  const x = lanes[lane];
+  const r = 10;
+  coinsOnRoad.push({x:x, y:-20, r:r, lane:lane});
+}
+
+/* ---------- Collision helpers ---------- */
+function rectsOverlap(x1,y1,w1,h1,x2,y2,w2,h2){
+  return !(x2 > x1 + w1 || x2 + w2 < x1 || y2 > y1 + h1 || y2 + h2 < y1);
+}
+function circleRectOverlap(cx,cy,r,rx,ry,rw,rh){
+  // rx,ry is top-left
+  const closestX = clamp(cx, rx, rx+rw);
+  const closestY = clamp(cy, ry, ry+rh);
+  const dx = cx - closestX;
+  const dy = cy - closestY;
+  return (dx*dx + dy*dy) < (r*r);
+}
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+/* ---------- Update loop ---------- */
+function update(){
+  if(gameState !== 'playing') return;
+  frame++;
+  const cfg = levelSettings[currentLevel];
+
+  // input: lane-based movement (left/right once per press)
+  const leftPressed = keys['arrowleft'] || keys['a'];
+  const rightPressed = keys['arrowright'] || keys['d'];
+  if(leftPressed && player.laneIndex > 0){
+    player.laneIndex -= 1;
+    player.x = lanes[player.laneIndex];
+    keys['arrowleft'] = false; keys['a'] = false;
+  } else if(rightPressed && player.laneIndex < laneCount -1){
+    player.laneIndex += 1;
+    player.x = lanes[player.laneIndex];
+    keys['arrowright'] = false; keys['d'] = false;
+  }
+
+  // spawn obstacles
+  if(frame % Math.max(8, Math.round(cfg.spawnRate - Math.random()*20)) === 0){
+    spawnObstacle();
+  }
+  // spawn coins slower
+  if(frame % Math.max(12, Math.round(cfg.coinRate - Math.random()*200)) === 0){
+    spawnCoin();
+  }
+
+  // update obstacles
+  for(let i=obstacles.length-1;i>=0;i--){
+    const ob = obstacles[i];
+    ob.y += cfg.speed * 1.02;
+    if(ob.y > H + 100){ obstacles.splice(i,1); score += 7; document.getElementById('score').textContent = score; }
+    else {
+      // collision
+      const px = player.x - player.w/2;
+      const py = player.y - player.h/2;
+      if(rectsOverlap(px, py, player.w, player.h, ob.x - ob.w/2, ob.y - ob.h/2, ob.w, ob.h)){
+        endGame();
+        return;
+      }
+    }
+  }
+
+  // update coins
+  for(let i=coinsOnRoad.length-1;i>=0;i--){
+    const c = coinsOnRoad[i];
+    c.y += cfg.speed * 0.9;
+    if(c.y > H + 50) { coinsOnRoad.splice(i,1); }
+    else {
+      // check collect
+      const px = player.x - player.w/2;
+      const py = player.y - player.h/2;
+      if(circleRectOverlap(c.x, c.y, c.r, px, py, player.w, player.h)){
+        // collect
+        coins += 5; // each coin yields 5 units
+        localStorage.setItem(STORAGE.coins, coins);
+        document.getElementById('coins').textContent = coins;
+        document.getElementById('shopCoins').textContent = coins;
+        coinsOnRoad.splice(i,1);
+      }
+    }
+  }
+
+  // survival score increment
+  if(frame % 12 === 0){ score += 1; document.getElementById('score').textContent = score; }
+}
+
+/* ---------- End game ---------- */
+function endGame(){
+  gameState = 'over';
+  document.getElementById('gameOver').style.display='flex';
+  document.getElementById('goTitle').textContent = 'Game Over';
+  document.getElementById('finalScore').textContent = 'Score: ' + score;
+  // update coins: when game ends, reward player extra coins based on score
+  const bonus = Math.floor(score/15) * 5;
+  if(bonus > 0){ coins += bonus; localStorage.setItem(STORAGE.coins, coins); document.getElementById('coins').textContent = coins; document.getElementById('shopCoins').textContent = coins; alert('You earned a bonus of '+bonus+' coins for your run!'); }
+  // update high score
+  if(score > highScore){ highScore = score; localStorage.setItem(STORAGE.highScore, highScore); document.getElementById('highScore').textContent = highScore; }
+}
+
+/* ---------- Draw ---------- */
+function draw(){
+  // clear
+  ctx.clearRect(0,0,W,H);
+
+  // background grass
+  ctx.fillStyle = '#6fb46f';
+  ctx.fillRect(0,0,W,H);
+
+  // draw road
+  ctx.fillStyle = '#2f2f2f';
+  roundRect(ctx, road.x, road.y, road.w, road.h, 16, true, false);
+
+  // lane separators
+  const laneW = road.w / laneCount;
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 4;
+  for(let i=1;i<laneCount;i++){
+    const sx = road.x + i*laneW;
+    ctx.setLineDash([16,18]);
+    ctx.beginPath();
+    ctx.moveTo(sx, 0);
+    ctx.lineTo(sx, H);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // center moving dashes for feel (optional)
+  const dashH = 34;
+  const offset = (frame*levelSettings[currentLevel].speed) % (dashH*2);
+  const centerX = road.x + road.w/2;
+  for(let y = -offset; y < H; y += dashH*2){
+    roundRect(ctx, centerX-6, y+40, 12, dashH, 4, true, false, '#fff');
+  }
+
+  // draw obstacles
+  obstacles.forEach(ob=>{
+    ctx.save();
+    ctx.translate(ob.x, ob.y);
+    roundRect(ctx, -ob.w/2, -ob.h/2, ob.w, ob.h, 8, true, false, '#8d6e63');
+    roundRect(ctx, -ob.w/4, -ob.h/2 + 8, ob.w/2, ob.h/4, 4, true, false, '#b3e5fc');
+    ctx.restore();
+  });
+
+  // draw coins
+  coinsOnRoad.forEach(c=>{
+    ctx.beginPath();
+    ctx.fillStyle = '#ffd54f';
+    ctx.arc(c.x, c.y, c.r, 0, Math.PI*2);
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#e6b800';
+    ctx.stroke();
+  });
+
+  // draw player
+  player.draw();
+}
+
+/* ---------- Utility drawing helpers ---------- */
+function roundRect(ctx, x, y, w, h, r, fill, stroke, color){
+  if (typeof r === 'undefined') r = 5;
+  if(color) ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r);
+  ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+  if(fill) ctx.fill();
+  if(stroke){ ctx.stroke(); }
+}
+
+/* ---------- Game loop ---------- */
+function loop(){
+  if(gameState === 'playing'){ update(); draw(); }
+  else if(gameState === 'menu' || gameState === 'level' || gameState === 'shop'){ draw(); } // static background still drawn
+  else if(gameState === 'paused'){ draw(); }
+  else if(gameState === 'over'){ draw(); }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ---------- Responsive & other hooks ---------- */
+window.addEventListener('resize', ()=> {
+  // keep canvas physical resolution unchanged, CSS handles layout
+});
+
+/* ---------- Initial UI state ---------- */
+showMainMenu();
+
+/* ---------- End of Script ---------- */
+/*
+Notes & next steps:
+- To add images, replace player.draw() with ctx.drawImage(img,...).
+- To change coin value: modify where coins += 5 on collect.
+- To add sounds: create Audio objects and play on collect / crash.
+- Want smoother steering? Replace lane jumps with x-velocity interpolation.
+*/
+</script>
+</body>
+</html>

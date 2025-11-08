@@ -90,7 +90,6 @@
     <header>
       <h1>Endless Road — Obstacle & Custom Cars</h1>
       <p class="top-sub">Collect coins to buy cars. Use ← → or A/D to move between lanes.</p>
-       <p class="top-sub">This Game Is Made By TSAR Productions </p>
     </header>
 
     <div class="screen">
@@ -601,6 +600,51 @@ window.addEventListener('resize', ()=> {
 /* ---------- Initial UI state ---------- */
 showMainMenu();
 
+/* ---------- Touch Controls for Mobile ---------- */
+// Detect screen touches to move car left/right (for smartphones)
+let touchStartX = null;
+canvas.addEventListener("touchstart", e => {
+  if (e.touches.length === 1) {
+    touchStartX = e.touches[0].clientX;
+  }
+});
+
+canvas.addEventListener("touchend", e => {
+  if (touchStartX === null) return;
+  const touchEndX = e.changedTouches[0].clientX;
+  const dx = touchEndX - touchStartX;
+  const minSwipe = 40; // min pixels to trigger swipe
+  if (Math.abs(dx) > minSwipe) {
+    if (dx < 0 && player.laneIndex > 0) {
+      // swipe left
+      player.laneIndex -= 1;
+      player.x = lanes[player.laneIndex];
+    } else if (dx > 0 && player.laneIndex < laneCount - 1) {
+      // swipe right
+      player.laneIndex += 1;
+      player.x = lanes[player.laneIndex];
+    }
+  }
+  touchStartX = null;
+  e.preventDefault();
+});
+
+// Optional: tap left/right side of screen to move
+canvas.addEventListener("touchstart", e => {
+  if (e.touches.length > 0) {
+    const x = e.touches[0].clientX;
+    const rect = canvas.getBoundingClientRect();
+    const relX = x - rect.left;
+    if (relX < rect.width / 2 && player.laneIndex > 0) {
+      player.laneIndex -= 1;
+      player.x = lanes[player.laneIndex];
+    } else if (relX >= rect.width / 2 && player.laneIndex < laneCount - 1) {
+      player.laneIndex += 1;
+      player.x = lanes[player.laneIndex];
+    }
+  }
+});
+
 /* ---------- End of Script ---------- */
 /*
 Notes & next steps:
@@ -612,4 +656,3 @@ Notes & next steps:
 </script>
 </body>
 </html>
-
